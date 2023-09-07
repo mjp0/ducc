@@ -24,12 +24,6 @@ export const CallS = z.object({
 })
 export type CallT = z.infer<typeof CallS>
 
-export const RequestCallS = z.object({
-  module_id: z.string().nonempty(),
-  method_id: z.string().nonempty(),
-})  
-export type RequestCallT = z.infer<typeof RequestCallS>
-
 export const SignatureS = z.object({
   n: z.string().optional(),
   c: z.string(),
@@ -38,10 +32,23 @@ export const SignatureS = z.object({
 })
 export type SignatureT = z.infer<typeof SignatureS>
 
+export const RequestCallS = z.object({
+  module_id: z.string().nonempty(),
+  method_id: z.string().nonempty(),
+})
+export type RequestCallT = z.infer<typeof RequestCallS>
+
+export const OfferS = z.object({
+  id: z.string().nonempty(),
+  call: RequestCallS,
+  multiplier: z.number().nonnegative().optional(),
+  sig: SignatureS,
+})
+export type OfferT = z.infer<typeof OfferS>
 
 export const SignedTransactionS = z.object({
   max_spent: z.number().nonnegative(),
-  signature: SignatureS
+  signature: SignatureS,
 })
 
 export type SignedTransactionT = z.infer<typeof SignedTransactionS>
@@ -51,11 +58,11 @@ export const BasePayloadS = z.object({
   meta: z.object({
     user_id: z.string().nonempty(),
   }),
-  router: CallS,
   auth: SignatureS,
+  offer: OfferS,
   params: z.any().optional(),
   signed_transaction: SignedTransactionS.optional(),
-  abort: z.boolean().optional()
+  abort: z.boolean().optional(),
 })
 export type BasePayloadT = z.infer<typeof BasePayloadS>
 
@@ -80,12 +87,17 @@ export type ModuleCallbacksT = {
 export type ModuleFnAPIT = { abort?: Function } | void
 
 export type WritebacksT = {
-  write: (data: { input: BasePayloadT, abort?: boolean } & { [key in string]: any }) => void
+  write: (data: { input: BasePayloadT; abort?: boolean } & { [key in string]: any }) => void
   close: () => void
 }
 
 export type ClientAPIT = {
-  request: (data: { user: UserT, params?: any, tx?: { max_spent: number } } & RequestCallT) => Promise<BasePayloadT | ErrorT>
+  request: (data: {
+    user: UserT
+    params?: any
+    offer: OfferT
+    tx?: { max_spent: number }
+  }) => Promise<BasePayloadT | ErrorT>
   compute: (data: CallbacksT & { request: BasePayloadT }) => Promise<ComputeT | ErrorT>
 }
 

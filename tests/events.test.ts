@@ -1,29 +1,75 @@
-import { expect, test } from "vitest"
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest"
 import { Server, Client } from "../src"
 import { keyPair } from "../src/security"
 import { mathModule } from "../src/modules/example/math"
-import { ReceiptS } from "../src/schemas"
+import { ReceiptS, SignedTransactionT } from "../src/schemas"
+import { setupServer } from 'msw/node'
+import { rest } from 'msw'
 
+// Generate user keys
 const keypair = await keyPair()
 const user = {
   ...keypair,
   user_id: keypair.public_key,
 }
 
+// Setup mockup wallet server
+export const restHandlers = [
+  rest.post('https://wallet.promptc0.com/charge', (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json({ result: 1 }))
+  }),
+  rest.post('https://wallet.promptc0.com/getBalance', async (req, res, ctx) => {
+    const b: { user_id: string } = await req.json()
+    if(b.user_id === '02f6681a65435cdee1c381fa0378ca2aaec49d40098bd517afebac230af68d6707') {
+      // return 0  
+      return res(ctx.status(200), ctx.json({ result: 0 }))
+    }
+    return res(ctx.status(200), ctx.json({ result: 123 }))
+  }),
+]
+
+const wallet_server = setupServer(...restHandlers)
+let server
+// Start server before all tests
+beforeAll(async () => {
+  wallet_server.listen({ onUnhandledRequest: 'error' })
+
+  const server_owner = {
+    private_key: "19f7ee8c6587b80042e5065be11500e03585d0dec7d5fd90b9cba3a93e9914ee",
+    public_key: "03c426ab58c9257cffc6c2f1acbc8bde5d9bb343be8ff7c6426f08310c9f26d9de",
+    user_id: "03c426ab58c9257cffc6c2f1acbc8bde5d9bb343be8ff7c6426f08310c9f26d9de",
+  }
+  
+  server = await Server({ modules: [mathModule], private_key: server_owner.private_key })
+})
+
+//  Close server after all tests
+afterAll(() => wallet_server.close())
+
+// Reset handlers after each test `important for test isolation`
+afterEach(() => wallet_server.resetHandlers())
+
+// Setup PEA server
+
+
 // start local server
 const client = await Client({
   type: "events",
   host: "localhost",
-  server_modules: [mathModule]
 })
 if ("error" in client) throw new Error(client.error)
 
 test("tests multiple module functions", async () => {
+  
   // create both requests first to see they stay separate
   const request_sum = await client.request({
     user,
-    module_id: "math",
-    method_id: "sum",
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "sum",
+      },
+    }),
     params: {
       a: 1,
       b: 2,
@@ -32,8 +78,12 @@ test("tests multiple module functions", async () => {
 
   const request_mul = await client.request({
     user,
-    module_id: "math",
-    method_id: "multiply",
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "multiply",
+      },
+    }),
     params: {
       a: 1,
       b: 2,
@@ -83,8 +133,12 @@ test("tests multiple module functions", async () => {
 test("tests streaming a request", async () => {
   const request_str = await client.request({
     user,
-    module_id: "math",
-    method_id: "stream_test",
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "stream_test",
+      },
+    }),
   })
 
   const str_seq: number[] = []
@@ -112,8 +166,12 @@ test("tests streaming a request", async () => {
 test("tests aborting a request", async () => {
   const request_str = await client.request({
     user,
-    module_id: "math",
-    method_id: "stream_test",
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "stream_test",
+      },
+    }),
   })
 
   const str_seq: number[] = []
@@ -137,44 +195,82 @@ test("tests aborting a request", async () => {
   expect(result_str?.error).toBe("cancelled")
 })
 
-test("tests accepting payments for a request", async () => {
+test("tests accepting payments for a request", async (done) => {
   const user = {
     private_key: "ae01f213da1b19876442a23925bd0752ef247406b0b253aec5bb01c4c3c3285e",
     public_key: "039955d31862f529349abafe3829a18160b5ba3dccfb185c0041ba9f5883af5f2c",
     user_id: "039955d31862f529349abafe3829a18160b5ba3dccfb185c0041ba9f5883af5f2c",
   }
-  const server = await Server({ modules: [mathModule] })
-  const client = await Client({
-    type: "events",
-  })
-  if ("error" in client) throw new Error(client.error)
 
   const request_str = await client.request({
     user,
-    module_id: "math",
-    method_id: "divide",
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "divide",
+      },
+      multiplier: 0.000000000000107147
+    }),
     params: {
       a: 2,
       b: 2,
     },
     tx: {
       max_spent: 0.01,
-    }
+    },
   })
   if ("error" in request_str) throw new Error(request_str.error)
 
   const divide_res = new Promise(async (resolve, reject) => {
     await client.compute({
       request: request_str,
-      onDone: (data) => {
-        resolve(data)
-      },
-      onError: ({ error }) => {
-        throw new Error(error)
-      },
+      onDone: resolve,
+      onError: reject,
     })
+  }).catch((error) => {
+    expect(error?.error).toBeFalsy()
   })
   const result_str: any = await Promise.resolve(divide_res)
   expect(ReceiptS.safeParse(result_str?.data.receipt).success).toBeTruthy()
   expect(result_str?.data.result).toBe(1)
-})//, { timeout: 100000 })
+})
+
+test("tests failing payments when no balance", async (done) => {
+  const user = {
+    private_key: "f9f64ffb2583c082c3c523907c832b8d6e23c07fda996c6d21b740d826b962de",
+    public_key: "02f6681a65435cdee1c381fa0378ca2aaec49d40098bd517afebac230af68d6707",
+    user_id: "02f6681a65435cdee1c381fa0378ca2aaec49d40098bd517afebac230af68d6707",
+  }
+
+  const request_str = await client.request({
+    user,
+    offer: await server.signOffer({
+      call: {
+        module_id: "math",
+        method_id: "divide",
+      },
+      multiplier: 0.000000000000107147
+    }),
+    params: {
+      a: 2,
+      b: 2,
+    },
+    tx: {
+      max_spent: 0.01,
+    },
+  })
+  if ("error" in request_str) throw new Error(request_str.error)
+
+  const divide_res = new Promise(async (resolve, reject) => {
+    await client.compute({
+      request: request_str,
+      onDone: resolve,
+      onError: reject,
+    })
+  }).catch((error) => {
+    expect(error?.error).toEqual("Insufficient balance")
+  })
+  const result_str: any = await Promise.resolve(divide_res)
+  expect(ReceiptS.safeParse(result_str?.data.receipt).success).toBeFalsy()
+  expect(result_str?.data.result).toBeUndefined()
+})

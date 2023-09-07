@@ -3,6 +3,7 @@ import { generateSchema } from "@anatine/zod-openapi"
 import OpenAPIParser from "@readme/openapi-parser"
 import { debug as Debug } from "debug"
 import b4a from "b4a"
+import { ErrorT } from "./schemas"
 
 export function convertZod({ schema }: { schema: any }) {
   return generateSchema(schema)
@@ -26,7 +27,9 @@ export function devMode() {
 }
 
 export function varToByte(params: any) {
-  return b4a.isBuffer(params) ? params.byteLength : new Blob([typeof params === "object" ? JSON.stringify(params) : params]).size || 0
+  return b4a.isBuffer(params)
+    ? params.byteLength
+    : new Blob([typeof params === "object" ? JSON.stringify(params) : params]).size || 0
 }
 
 // function to detect numbers in strings
@@ -47,4 +50,16 @@ export function parseNumber(str: string) {
     return parseInt(str)
   }
   return str
+}
+
+export const timeout = ({ ms, fn }: { ms: number; fn: Promise<any> }): Promise<ErrorT | Response> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject({ error: "timeout" })
+    }, ms)
+    fn.then((data) => {
+      clearTimeout(timer)
+      resolve(data)
+    }, reject)
+  })
 }

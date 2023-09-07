@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { SignatureS, CallS, CallT, CallbacksT, ErrorT } from "./"
+import { SignatureS, CallS, CallT, CallbacksT, ErrorT, OfferS } from "./"
 
 // WALLET
 export type WalletT = {
@@ -20,20 +20,23 @@ export type WalletAPIT = {
 export const CostDetailsS = z.object({
   input: z.object({
     tokens: z.number(),
-    cost_usd: z.number(),
+    bytes: z.number(),
   }),
   output: z.object({
     tokens: z.number(),
-    cost_usd: z.number(),
+    bytes: z.number(),
   }),
 })
 export type CostDetailsT = z.infer<typeof CostDetailsS>
 
 export const ReceiptS = z.object({
-  receipt_id: z.string(),
-  cost_usd: z.number(),
+  id: z.string(),
+  user_id: z.string(),
   details: CostDetailsS,
-  call: CallS,
+  total_bytes: z.number(),
+  total_tokens: z.number(),
+  offer: OfferS,
+  sig: z.string()
 })
 export type ReceiptT = z.infer<typeof ReceiptS>
 

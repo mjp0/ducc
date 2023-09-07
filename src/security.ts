@@ -39,7 +39,7 @@ export async function checkChallenge({
 }
 
 export function createHash({ str }: { str: Uint8Array | string }): Uint8Array {
-  return blake3(b4a.isBuffer(str) ? str : b4a.from(str, 'hex'))
+  return blake3(b4a.isBuffer(str) ? str : b4a.from(str, "hex"))
 }
 
 export function verifySignature({
@@ -51,7 +51,7 @@ export function verifySignature({
   signature: Hex
   public_key: Hex
 }): boolean {
-  const hash = buf2hex({ input: createHash({ str: message })})
+  const hash = buf2hex({ input: createHash({ str: message }) })
   return verify(signature, hash, public_key)
 }
 
@@ -60,11 +60,11 @@ export async function verifyAuth(data: BasePayloadT & { ip: string; request_id: 
     const auth = data.auth as SignatureT
     // we need to verify the signature by generating the same hash as the client
     // to avoid signature reuse, we need to include the given challenge in the hash as nonce
-    if (!(await checkChallenge({ challenge: data.auth.n, ip: data.ip, request_id: data.request_id }))) return false
-    
+    if (!(await checkChallenge({ challenge: data.auth.n || "", ip: data.ip, request_id: data.request_id }))) return false
+
     d(`verifying signature for ${data.request_id}`)
     const message = createHash({
-      str: JSON.stringify({ router: data.router, params: data.params || {}, nonce: data.auth.n, request_id: data.id }),
+      str: JSON.stringify({ offer: data.offer, params: data.params || {}, nonce: data.auth.n, request_id: data.id }),
     })
     return verifySignature({ message: buf2hex({ input: message }), signature: auth.s, public_key: auth.pk })
   } else return { error: "Missing auth or params" }
@@ -81,6 +81,10 @@ export async function signMessage(message: Uint8Array | string, secretKey: Uint8
   const hash = buf2hex({ input: createHash({ str: m }) })
   const s = await signAsync(hash, buf2hex({ input: secretKey }))
   return s.toCompactRawBytes()
+}
+
+export async function getPublicKeyFromPrivate({ private_key }: { private_key: string }) {
+  return buf2hex({ input: await getPublicKey(private_key) })
 }
 
 export function buf2hex({ input, add0x = false }: { input: Uint8Array | Buffer; add0x?: boolean }): string {

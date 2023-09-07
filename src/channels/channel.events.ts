@@ -1,91 +1,15 @@
 import { z } from "zod"
-import EventBus from "./events"
+import EventBus from "@/channels/events"
 import {
   BasePayloadT,
   CallbacksT,
   ChannelMessageT,
-  ErrorT,
-  MessageT,
-  DoneMessageT,
   WritebacksT,
-  DataMessageT,
-  ReadyMessageT,
   ModuleS,
   BasePayloadS,
 } from "@/schemas"
-import { ServerAPIT } from "./schemas/server"
-
-let WSS: WebSocket
-
-export type ChannelT = {
-  write: ({ msg, status }: { msg?: any; status: number }) => Promise<void>
-  error: (err: any) => Promise<void>
-  end: () => Promise<boolean>
-}
-
-async function processMessage({ request_id, data, onData, onDone, onError }: ChannelMessageT & CallbacksT) {
-  if ("error" in data) {
-    return onError && onError(data)
-  }
-  // first response should be { request_id: "...", status: "ready" }
-  if (data.request_id && data.status === "ready") {
-    request_id = data.request_id
-    return
-  } else if (data.request_id === request_id && data.status === "data") {
-    // all subsequent responses should be { request_id: "...", data: "..." }
-    const d = data as DataMessageT
-    return onData && onData(d)
-  } else if (data.request_id === request_id && data.status === "complete") {
-    const d = data as DoneMessageT
-    return onDone && onDone(d)
-  } else if (data.request_id === request_id) {
-    return onError && onError({ error: `Unknown type of response: ${JSON.stringify(data)}`, code: 500 })
-  }
-}
-
-export async function websocket({
-  request_id,
-  host,
-  onData,
-  onDone,
-  onError,
-}: {
-  request_id: string
-  host: string
-} & CallbacksT): Promise<WritebacksT> {
-  const openConnection = async () => {
-    if (!WSS || WSS?.readyState !== 1) {
-      // open websocket connection to host/PE
-      WSS = new WebSocket(`${host}/PE`)
-      return new Promise((resolve) => {
-        WSS.onopen = () => {
-          resolve(true)
-        }
-      })
-    }
-  }
-  const API: WritebacksT = {
-    write: async (data): Promise<void> => {
-      await openConnection()
-      WSS.send(JSON.stringify(data))
-    },
-    close: async (): Promise<boolean> => {
-      if (WSS) WSS.close()
-      return true
-    },
-  }
-  await openConnection()
-
-  WSS.onmessage = (event) => {
-    try {
-      const data: ChannelMessageT["data"] = JSON.parse(event.data)
-      processMessage({ request_id, data, onData, onDone, onError })
-    } catch (error) {
-      return { error }
-    }
-  }
-  return API
-}
+import { ServerAPIT } from "@/schemas/server"
+import { processMessage } from "."
 
 export async function events({
   request_id,
@@ -95,8 +19,8 @@ export async function events({
 }: { request_id: string } & CallbacksT): Promise<WritebacksT> {
   const API: WritebacksT = {
     write: async (data): Promise<void> => {
-      const { router } = data.input
-      EventBus.emit(`${router.id}:${router.path}:${router.method}`, data)
+      const { offer } = data.input
+      EventBus.emit(`${offer.call.module_id}:/${offer.call.method_id}:post`, data)
     },
     close: async (): Promise<boolean> => {
       // TODO: clean up event listeners

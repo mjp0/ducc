@@ -1,8 +1,9 @@
-import { ModuleS, BasePayloadS, BasePayloadT, CallbacksT, RequestAPIT, ErrorT, SignedTransactionS } from "@/schemas"
-import { createChallenge, verifyAuth } from "@/security"
+import { ModuleS, BasePayloadS, BasePayloadT, CallbacksT, RequestAPIT, ErrorT, SignedTransactionS, OfferT } from "@/schemas"
+import {getPublicKeyFromPrivate, buf2hex, createChallenge, createHash, hex2buf, keyPair, signMessage, verifyAuth } from "@/security"
 import { z } from "zod"
 import { Request } from "@/request"
-import { eventsServer } from "@/channels"
+import { eventsServer } from "@/channels/channel.events"
+import { websocketServer } from "@/channels/channel.websocket"
 import _ from "lodash"
 import { ServerAPIT } from "@/schemas/server"
 import { router } from "@/router"
@@ -10,6 +11,7 @@ import { debug, parseNumber, varToByte } from "@/utils"
 import { handshakeModule } from "@/modules/handshake"
 import { walletModule } from "./modules/wallet"
 import { asAPI } from "./modules"
+import { nanoid } from "nanoid"
 
 const d = debug("server")
 const MODULES: z.infer<typeof ModuleS>[] = []
@@ -19,17 +21,26 @@ const REQUESTS: { [key: string]: RequestAPIT | boolean } = {}
 
 export async function Server({
   modules,
+  private_key,
   protocols,
   globals,
   type = "events",
   no_auth = false,
+  host = '127.0.0.1',
+  port = 8080
 }: {
   modules: z.infer<typeof ModuleS>[]
+  private_key?: string
   protocols?: { id: string; logic: any }[]
   globals?: any
   type?: "events" | "websocket"
   no_auth?: boolean
+  host?: string
+  port?: number
 }) {
+  // generate private key if one is not set
+  if (!private_key) private_key = (await keyPair()).private_key
+
   // set globals
   if (globals) {
     for (const key in globals) {
@@ -70,12 +81,12 @@ export async function Server({
       input: BasePayloadT
       globals?: { ip: string; [key: string]: any }
     } & CallbacksT) {
-      d(`executing ${input.router.id}:${input.router.path} / ${input.id}`)
+      d(`executing ${input.offer.call.module_id}:${input.offer.call.method_id} / ${input.id}`)
       const parsed_input = BasePayloadS.safeParse(input)
       if (!parsed_input.success) return { error: `Invalid payload`, code: 400 }
 
       // if this is a challenge request, generate challenge and response
-      if (!no_auth && input.router.id === "handshake" && input.router.path === "/challenge") {
+      if (!no_auth && input.offer.call.module_id === "handshake" && input.offer.call.method_id === "challenge") {
         // TODO: refactor this into something cleaner
         const done = async (data: any) => {
           const challenge = data.result
@@ -105,39 +116,41 @@ export async function Server({
       }
 
       // check if request is paid and if its paid, check it includes tx
-      const m = MODULES.find((m) => m.id === input.router.id)
-      const p = m?.schema?.paths[input.router.path]?.post
+      const m = MODULES.find((m) => m.id === input.offer.call.module_id)
+      const p = m?.schema?.paths[`/${input.offer.call.method_id}`]?.post
       if (!p) return { error: `Invalid module method`, code: 404 }
 
       // check if tags have multiplier=x
       const multiplier = parseNumber(p.tags?.find((t: string) => t.startsWith("multiplier="))?.split("=")[1] || "0")
       const t = typeof multiplier
-      if (multiplier && typeof multiplier === 'number') {
+
+      // if there's a multiplier, this is paid request and we need to check if user has enough balance
+      if (multiplier && typeof multiplier === "number") {
         // check if tx is present
         if (!input.signed_transaction) return { error: `Missing tx`, code: 400 }
 
         // verify transaction
-        if(!SignedTransactionS.safeParse(input.signed_transaction).success) {
+        if (!SignedTransactionS.safeParse(input.signed_transaction).success) {
           return { error: `Invalid tx`, code: 400 }
         }
 
         // verify user has enough balance
         const wallet = asAPI(walletModule)
-        const balance = await wallet.getBalance({ user_id: input.meta.user_id }) || 0
+        const balance = (await wallet.getBalance({ user_id: input.meta.user_id })) || 0
 
-        if(!balance?.result) return { error: `Invalid balance`, code: 400 }
+        if (balance?.result === undefined) return { error: `Invalid balance`, code: 400 }
 
         const params_cost = await varToByte(input.params || {})
 
         const total_cost = params_cost * multiplier
 
-        if(total_cost > balance?.result) return { error: `Insufficient balance`, code: 402 }
+        if (total_cost > balance?.result) return { error: `Insufficient balance`, code: 402 }
       }
 
       // setup the request
       const request = await Request({
-        module_id: input.router.id,
-        method_id: input.router.path,
+        module_id: input.offer.call.module_id,
+        method_id: input.offer.call.method_id,
         request_id: input.id,
         onData,
         onDone,
@@ -148,7 +161,7 @@ export async function Server({
 
       return router({
         input: { ...parsed_input.data, params: input?.params || null } || {},
-        globals: { MODULES, PROTOCOLS, REQUESTS, ...GLOBALS, ...globals },
+        globals: { MODULES, PROTOCOLS, REQUESTS, ...GLOBALS, ...globals, private_key },
         request,
         onData,
         onDone,
@@ -165,6 +178,21 @@ export async function Server({
       MODULES.push(module)
       return { code: 200 }
     },
+    signOffer: async function (offer) {
+      if(!private_key) return { error: `No private key`, code: 500 }
+      const offer_hash = createHash({ str: JSON.stringify(offer) })
+      const signature = await signMessage(offer_hash, hex2buf({ input: private_key }))
+      const off: OfferT = {
+        ...offer,
+        id: nanoid(),
+        sig:  {
+          c: buf2hex({ input: offer_hash }),
+          s: buf2hex({ input: signature }),
+          pk: await getPublicKeyFromPrivate({ private_key })
+        }
+      }
+      return off
+    },
   }
 
   switch (type) {
@@ -172,8 +200,7 @@ export async function Server({
       eventsServer({ API })
       break
     case "websocket":
-      return { error: "websocket server not implemented yet", code: 500 }
-      // websocketServer({ API })
+      websocketServer({ API, host, port })
       break
   }
 

@@ -11,19 +11,22 @@ import {
   SignedTransactionT,
   WritebacksT,
 } from "@/schemas"
-import { events, websocket } from "./channels"
+import { events } from "@/channels/channel.events"
+import { websocket } from "@/channels/channel.websocket"
 import { nanoid } from "nanoid"
-import { buf2hex, createHash, hex2buf, signMessage } from "./security"
-import { devMode } from "./utils"
+import { buf2hex, createHash, hex2buf, signMessage } from "@/security"
+import { devMode } from "@/utils"
 
 export async function Client<T>({
   host,
   type = "events",
   server_modules = [],
+  server_private_key,
 }: {
   host?: string
   type: "websocket" | "events"
   server_modules?: ModuleT[]
+  server_private_key?: string
 }): Promise<ClientAPIT | ErrorT> {
   // setup channel
   let channel: Function | undefined
@@ -37,13 +40,7 @@ export async function Client<T>({
   }
 
   const API: ClientAPIT = {
-    request: async ({ user, module_id, method_id, params, tx }) => {
-      const router = {
-        id: module_id,
-        path: `/${method_id}`,
-        method: "post",
-      }
-
+    request: async ({ user, offer, params, tx }) => {
       // create request_id
       const request_id = nanoid()
 
@@ -70,10 +67,19 @@ export async function Client<T>({
             meta: {
               user_id: user.user_id,
             },
-            router: {
+            params,
+            offer: {
               id: "handshake",
-              path: "/challenge",
-              method: "post",
+              call: {
+                module_id: "handshake",
+                method_id: "challenge",
+              },
+              sig: {
+                n: "",
+                c: "",
+                s: "",
+                pk: user.public_key,
+              },
             },
             auth: {
               n: "",
@@ -91,7 +97,7 @@ export async function Client<T>({
 
       // compute signature with the challenge
       const request_hash = createHash({
-        str: JSON.stringify({ router, params: params || {}, nonce: challenge?.data?.challenge, request_id }),
+        str: JSON.stringify({ offer, params: params || {}, nonce: challenge?.data?.challenge, request_id }),
       })
       const t = buf2hex({ input: request_hash })
       const signature = await signMessage(request_hash, hex2buf({ input: user.private_key }))
@@ -106,7 +112,7 @@ export async function Client<T>({
 
       // create signed transaction
       const tx_hash = createHash({
-        str: JSON.stringify({ router, params: params || {}, request_id, max_spent: tx?.max_spent || 0 }),
+        str: JSON.stringify({ offer, params: params || {}, request_id, max_spent: tx?.max_spent || 0 }),
       })
       const tx_signature = await signMessage(tx_hash, hex2buf({ input: user.private_key }))
 
@@ -124,10 +130,10 @@ export async function Client<T>({
         meta: {
           user_id: user.user_id,
         },
-        router,
         params,
         auth,
         signed_transaction,
+        offer,
       }
 
       return req
@@ -153,8 +159,14 @@ export async function Client<T>({
 
   // if host is set at localhost, start event-based server
   if (host === "localhost") {
-    const server = await Server({ modules: server_modules, type: "events" })
-    if ("error" in server) throw new Error(server.error)
+    const server = await Server({
+      modules: server_modules,
+      type: "events",
+      private_key: server_private_key || undefined,
+    })
+    if ("error" in server) {
+      throw new Error(JSON.stringify(server.error))
+    }
   }
   return API
 }
