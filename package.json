@@ -9,8 +9,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "deploy": "npm test && npm run build && npm publish"
+    "test": "vitest"
   },
   "devDependencies": {
     "@anatine/zod-openapi": "^2.2.0",
