@@ -5,6 +5,9 @@
   "author": "Marko Polojarvi <marko@machian.com>",
   "main": "dist/bundle.js",
   "type": "module",
+  "engines": {
+    "node": "^16"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
