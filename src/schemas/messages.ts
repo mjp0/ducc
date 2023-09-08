@@ -1,6 +1,6 @@
 import { z } from "zod"
-import { ReceiptS, CostDetailsS, ErrorT } from "."
-
+import { CostDetailsS, ErrorT } from "."
+import { ReceiptS } from "./wallet"
 export const MessageS = z.object({
   request_id: z.string().nonempty(),
   msg: z.any().optional(),

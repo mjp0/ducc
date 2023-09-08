@@ -2797,7 +2797,24 @@ ey.merge(
     auth: Tf
   })
 );
-const If = Te.object({
+const K2 = Te.object({
+  input: Te.object({
+    tokens: Te.number(),
+    bytes: Te.number()
+  }),
+  output: Te.object({
+    tokens: Te.number(),
+    bytes: Te.number()
+  })
+}), ag = Te.object({
+  id: Te.string(),
+  user_id: Te.string(),
+  details: K2,
+  total_bytes: Te.number(),
+  total_tokens: Te.number(),
+  offer: H2,
+  sig: Te.string()
+}), If = Te.object({
   request_id: Te.string().nonempty(),
   msg: Te.any().optional(),
   code: Te.string().optional(),
@@ -2869,23 +2886,6 @@ const Iu = Te.lazy(
     paths: Te.record(Te.record(v3)),
     components: Te.object({ schemas: Te.record(Iu) }).optional()
   })
-}), K2 = Te.object({
-  input: Te.object({
-    tokens: Te.number(),
-    bytes: Te.number()
-  }),
-  output: Te.object({
-    tokens: Te.number(),
-    bytes: Te.number()
-  })
-}), ag = Te.object({
-  id: Te.string(),
-  user_id: Te.string(),
-  details: K2,
-  total_bytes: Te.number(),
-  total_tokens: Te.number(),
-  offer: H2,
-  sig: Te.string()
 });
 function lu(e) {
   if (!Number.isSafeInteger(e) || e < 0)
