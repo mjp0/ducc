@@ -12,7 +12,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest --no-watch"
+    "test": "vitest --no-watch",
+    "release": "npx np --no-cleanup"
   },
   "devDependencies": {
     "@anatine/zod-openapi": "^2.2.0",
