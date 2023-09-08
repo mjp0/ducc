@@ -50,7 +50,7 @@ export async function Server({
   }
 
   // validate all Modules and Protocols
-  modules = [...modules, handshakeModule, walletModule]
+  modules = [...modules, await handshakeModule(), await walletModule()]
   for (const module of modules) {
     const is_valid_module = ModuleS.safeParse(module)
     if (!is_valid_module.success) {
@@ -135,7 +135,7 @@ export async function Server({
         }
 
         // verify user has enough balance
-        const wallet = asAPI(walletModule)
+        const wallet = asAPI(await walletModule())
         const balance = (await wallet.getBalance({ user_id: input.meta.user_id })) || 0
 
         if (balance?.result === undefined) return { error: `Invalid balance`, code: 400 }

@@ -136,7 +136,7 @@ export async function router<T>({
         data.receipt = parsed_receipt.data
 
         // charge the wallet
-        const wallet = asAPI(walletModule)
+        const wallet = asAPI(await walletModule())
         try {
           const charge = await wallet.charge({
             receipt: data.receipt,
