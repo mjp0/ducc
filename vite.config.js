@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path'
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import dts from 'vite-plugin-dts'
 
 export default defineConfig({
-  plugins: [nodePolyfills()],
+  plugins: [nodePolyfills(), dts({ rollupTypes: true })],
   build: {
     target: 'modules',
     lib: {

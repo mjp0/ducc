@@ -1,17 +1,13 @@
 import { afterAll, afterEach, beforeAll, expect, test } from "vitest"
 import { Server, Client } from "../src"
-import { keyPair } from "../src/security"
+import { generateUser, keyPair } from "../src/security"
 import { mathModule } from "../src/modules/example/math"
 import { ReceiptS, SignedTransactionT } from "../src/schemas"
 import { setupServer } from 'msw/node'
 import { rest } from 'msw'
 
 // Generate user keys
-const keypair = await keyPair()
-const user = {
-  ...keypair,
-  user_id: keypair.public_key,
-}
+const user = await generateUser()
 
 // Setup mockup wallet server
 export const restHandlers = [

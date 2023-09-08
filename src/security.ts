@@ -60,7 +60,8 @@ export async function verifyAuth(data: BasePayloadT & { ip: string; request_id: 
     const auth = data.auth as SignatureT
     // we need to verify the signature by generating the same hash as the client
     // to avoid signature reuse, we need to include the given challenge in the hash as nonce
-    if (!(await checkChallenge({ challenge: data.auth.n || "", ip: data.ip, request_id: data.request_id }))) return false
+    if (!(await checkChallenge({ challenge: data.auth.n || "", ip: data.ip, request_id: data.request_id })))
+      return false
 
     d(`verifying signature for ${data.request_id}`)
     const message = createHash({
@@ -95,4 +96,12 @@ export function buf2hex({ input, add0x = false }: { input: Uint8Array | Buffer; 
 
 export function hex2buf({ input }: { input: string }): Uint8Array {
   return b4a.from(input.replace(/^0x/, ""), "hex")
+}
+
+export async function generateUser() {
+  const keypair = await keyPair()
+  return {
+    ...keypair,
+    user_id: keypair.public_key,
+  }
 }
