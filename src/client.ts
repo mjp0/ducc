@@ -18,7 +18,7 @@ import { buf2hex, createHash, hex2buf, signMessage } from "@/security"
 import { devMode } from "@/utils"
 
 export async function Client<T>({
-  host,
+  host = "localhost",
   type = "events",
   server_modules = [],
   server_private_key,
@@ -27,7 +27,7 @@ export async function Client<T>({
   type: "websocket" | "events"
   server_modules?: ModuleT[]
   server_private_key?: string
-}): Promise<ClientAPIT | ErrorT> {
+}): Promise<(ClientAPIT & { host: string; type: string }) | ErrorT> {
   // setup channel
   let channel: Function | undefined
   switch (type) {
@@ -168,5 +168,5 @@ export async function Client<T>({
       throw new Error(JSON.stringify(server.error))
     }
   }
-  return API
+  return { ...API, host, type }
 }

@@ -204,5 +204,5 @@ export async function Server({
       break
   }
 
-  return API
+  return { ...API, host, type }
 }
