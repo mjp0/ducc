@@ -127,5 +127,3 @@ export const walletModule = async(): Promise<ModuleT> => {
     })
   return walletM.run()
 }
-
- module
