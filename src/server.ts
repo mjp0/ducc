@@ -20,7 +20,7 @@ const GLOBALS: { [key: string]: any } = {}
 const REQUESTS: { [key: string]: RequestAPIT | boolean } = {}
 
 export async function Server({
-  modules,
+  modules = [],
   private_key,
   protocols,
   globals,
