@@ -13,7 +13,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest --no-watch",
-    "release": "npm run build && npx np --no-cleanup"
+    "release": "npm run build && git commit -am 'chore: new build' && npx np --no-cleanup"
   },
   "devDependencies": {
     "@anatine/zod-openapi": "^2.2.0",
