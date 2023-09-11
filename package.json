@@ -1,7 +1,7 @@
 {
   "name": "ducc",
   "description": "Distributed Unified Computing Cloud",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "author": "Marko Polojarvi <marko@machian.com>",
   "main": "dist/bundle.js",
   "type": "module",
