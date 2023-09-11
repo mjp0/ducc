@@ -40608,10 +40608,10 @@ async function qH({
       Yz({ API: c, host: a, port: u });
       break;
   }
-  return c;
+  return { ...c, host: a, type: n };
 }
 async function YH({
-  host: e,
+  host: e = "localhost",
   type: t = "events",
   server_modules: r = [],
   server_private_key: i
@@ -40730,7 +40730,7 @@ async function YH({
     if ("error" in a)
       throw new Error(JSON.stringify(a.error));
   }
-  return s;
+  return { ...s, host: e, type: t };
 }
 export {
   YH as Client,
