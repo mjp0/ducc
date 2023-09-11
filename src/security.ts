@@ -2,18 +2,18 @@ import { blake3 } from "@noble/hashes/blake3"
 import b4a from "b4a"
 import { SignatureT, BasePayloadT, Hex } from "@/schemas"
 import { verify, utils, getPublicKey, signAsync } from "@noble/secp256k1"
-import Cache from "ttl"
+// import Cache from "ttl"
+import Keyv from 'keyv'
 import { nanoid } from "nanoid"
 import { debug } from "@/utils"
 const d = debug("security")
 
-const challenge_cache = new Cache({
-  ttl: 1000 * 1000,
-})
+const challenge_cache = new Keyv()
+const CHALLENGE_TTL = 1000 * 1000
 
 export async function createChallenge({ ip, request_id }: { ip: string; request_id: string }) {
   const c = nanoid()
-  challenge_cache.put(c, { ip, request_id })
+  await challenge_cache.set(c, { ip, request_id }, CHALLENGE_TTL)
   return c
 }
 
@@ -26,7 +26,7 @@ export async function checkChallenge({
   ip: string
   request_id: string
 }) {
-  const dqt = challenge_cache.get(challenge)
+  const dqt = await challenge_cache.get(challenge)
   if (!dqt) {
     d(`challenge ${challenge} not found`)
     return false

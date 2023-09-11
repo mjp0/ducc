@@ -1,21 +1,15 @@
-import { z } from "zod"
 import {
   BasePayloadT,
   CallbacksT,
   ChannelMessageT,
-  DoneMessageT,
   WritebacksT,
-  DataMessageT,
-  ModuleS,
-  BasePayloadS,
   ServerAPIT,
 } from "@/schemas"
 import { processMessage } from "."
 import WebSocket, { WebSocketServer } from "ws"
-import Cache from "ttl"
 import b4a from "b4a"
 
-const WSSCache = new Cache({ ttl: 1000 * 60 * 1 })
+const WSSCache = new Map()
 
 export async function websocket({
   request_id,
@@ -32,7 +26,7 @@ export async function websocket({
     if (!WSS || WSS?.readyState !== 1) {
       // open websocket connection to host/PE
       const WSS = new WebSocket(`ws://${host}:8080`)
-      WSSCache.put(host, WSS)
+      WSSCache.set(host, WSS)
       return new Promise((resolve) => {
         WSS.onopen = () => {
           resolve(WSS)
@@ -50,7 +44,7 @@ export async function websocket({
       const WSS = (await openConnection()) as WebSocket
       if (WSS) {
         WSS.close()
-        WSSCache.del(host)
+        WSSCache.delete(host)
       }
       return true
     },

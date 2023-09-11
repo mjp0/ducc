@@ -1,14 +1,16 @@
 import { ReceiptT } from "@/schemas"
 import { timeout } from "@/utils"
-import Cache from "ttl"
+// import Cache from "ttl"
+import Cache from 'keyv'
 
+const TTL = 10000
 const StatusCache = new Cache({ ttl: 10000 }) // 10 seconds
 const BalancesCache = new Cache({ ttl: 10000 }) // 10 seconds
 const SubsidizedBalancesCache = new Cache({ ttl: 10000 }) // 10 seconds
 
 export const getStatus = async ({ user_id }: { user_id: string }): Promise<any> => {
   // fetch status from users
-  const status = StatusCache.get(user_id)
+  const status = await StatusCache.get(user_id)
   if (status) return status
   const res = await timeout({
     ms: 15000,
@@ -21,12 +23,12 @@ export const getStatus = async ({ user_id }: { user_id: string }): Promise<any> 
     })
   }).then(d => 'json' in d && d.json())
   if(!res || 'error' in res || typeof res.result === undefined) return false
-  StatusCache.put(user_id, res.result)
+  await StatusCache.set(user_id, res.result, TTL)
   return res.result
 }
 export const getBalance = async ({ user_id }: { user_id: string }): Promise<any> => {
   // fetch balance from wallets
-  const balance = BalancesCache.get(user_id)
+  const balance = await BalancesCache.get(user_id)
   if (balance) return balance
   const res = await timeout({
     ms: 15000,
@@ -39,12 +41,12 @@ export const getBalance = async ({ user_id }: { user_id: string }): Promise<any>
     })
   }).then(d => 'json' in d && d.json())
   if(!res || 'error' in res || typeof res.result === undefined) return false
-  BalancesCache.put(user_id, res.result)
+  await BalancesCache.set(user_id, res.result, TTL)
   return res.result
 }
 export const getSubsidizedBalance = async ({ user_id }: { user_id: string }): Promise<any> => {
   // fetch balance from wallets
-  const balance = SubsidizedBalancesCache.get(user_id)
+  const balance = await SubsidizedBalancesCache.get(user_id)
   if (balance) return balance
   const res = await timeout({
     ms: 15000,
@@ -57,7 +59,7 @@ export const getSubsidizedBalance = async ({ user_id }: { user_id: string }): Pr
     })
   }).then(d => 'json' in d && d.json())
   if(!res || 'error' in res || typeof res.result === undefined) return false
-  SubsidizedBalancesCache.put(user_id, res.result)
+  await SubsidizedBalancesCache.set(user_id, res.result, TTL)
   return res.result
 }
 

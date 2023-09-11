@@ -1,4 +1,3 @@
-import { nanoid } from "nanoid"
 import { RequestAPIT, CallbacksT, CallT, RequestCallT, SignedTransactionT } from "@/schemas"
 import _ from "lodash"
 
